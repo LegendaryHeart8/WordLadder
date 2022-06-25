@@ -16,4 +16,5 @@ To use a different set of valid words, replace "words.txt" in the "EnglishWords"
 
 ## Acknowledgements
 
+Julia scripts written by Garrett Richards.
 The file "words.txt" was pulled from this repository: [https://github.com/dwyl/english-words](https://github.com/dwyl/english-words)
