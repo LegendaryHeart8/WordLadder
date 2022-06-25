@@ -1,6 +1,8 @@
 println("Loading...")
 include("solver.jl")
 
+closedDict = Dict()
+
 asking = true
 while asking
     #ask if the user wants to solve
@@ -17,14 +19,14 @@ while asking
 
     #ask for words
     print("Give a source word:\n")
-    source = readline()
+    source = sanatizeWord(readline())
     if !isWord(source)
         println("$source is not a word")
         continue
     end
 
     print("Where to go from $source?\n")
-    destination = readline()
+    destination = sanatizeWord(readline())
     if !isWord(destination)
         println("$destination is not a word")
         continue

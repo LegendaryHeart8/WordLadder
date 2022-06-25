@@ -1,12 +1,11 @@
 #include neccary files
 include("WordNodes.jl")
 include("heap.jl")
-# get words
-wordFileName = joinpath(dirname(Base.source_path()), "EnglishWords/words.txt")
-f = open(wordFileName, "r")
-words= readlines(f)
-close(f)
-sort!(words, by = lowercase)
+
+#turn text into an accessible word (e.g. turning it into lowercase)
+function sanatizeWord(text::String)::String
+    return strip(lowercase(text))
+end
 
 #check if text only has lowercase letters
 function isAtoZ(text)
@@ -14,7 +13,7 @@ function isAtoZ(text)
 end
 function isWord(text)
     global words
-    low = lowercase(text)
+    low = sanatizeWord(text)
     #check if word only has letters
     if !isAtoZ(low)
         return false
@@ -25,7 +24,7 @@ function isWord(text)
     foundWord = false
     while l < r && !foundWord
         mid = cld(l+r, 2)
-        midword = lowercase(words[mid])
+        midword = words[mid]
         if low < midword
             r= mid-1
         elseif midword < low
@@ -37,7 +36,7 @@ function isWord(text)
     if l>length(words) || r< 1
         return false
     end
-    midword = lowercase(words[l])
+    midword = words[l]
     if midword == low
         foundWord = true
     end
@@ -59,9 +58,12 @@ end
 function astar(source, destination, metric::Function = wordDist)
     alphabet = "abcdefghijklmnopqrstuvwxyz"
 
+    sou = sanatizeWord(source)
+    dest = sanatizeWord(destination)
+
     closedDict = Dict{String, Union{Nothing, WordNode}}() # key is a word, value is the parent/travel-from
-    openDict = Dict{String, Int}(source => 1) # key is a word, value is the index in open heap of the word
-    openHeap = Array{Union{WordNode, Nothing}, 1}([WordNode(source, 0, metric(source, destination), "")])
+    openDict = Dict{String, Int}(sou => 1) # key is a word, value is the index in open heap of the word
+    openHeap = Array{Union{WordNode, Nothing}, 1}([WordNode(sou, 0, metric(sou, dest), "")])
     function openHeapSwap(heap, a, b)
         openDict[heap[a].word] = b
         openDict[heap[b].word] = a
@@ -69,7 +71,7 @@ function astar(source, destination, metric::Function = wordDist)
     end
     lastOpen = 1
 
-    hFunc(x) = metric(x, destination)
+    hFunc(x) = metric(x, dest)
     getF(x::WordNode) = x.f
     #fFunc(x::WordNode) = hFunc(x.word) + x.g
     foundDestination = false
@@ -96,7 +98,7 @@ function astar(source, destination, metric::Function = wordDist)
 
                 Q = WordNode(Qword, Qg, Qf, q.word)
 
-                if Qword == destination
+                if Qword == dest
                     foundDestination = true
                     closedDict[Qword] =  Q # place on closed dict
                     break
@@ -139,15 +141,25 @@ function astar(source, destination, metric::Function = wordDist)
     return closedDict
 end
 function printPath(source::String, destination::String, closedDict::Dict{String, Union{Nothing, WordNode}})
-    if !haskey(closedDict, destination)
-        println("No path found between $source and $destination !")
+    sou = sanatizeWord(source)
+    dest = sanatizeWord(destination)
+    if !haskey(closedDict, dest)
+        println("No path found between $source and $(destination)!")
         return
     end
     #print path
-    wordOn = destination
-    while wordOn != source
+    wordOn = dest
+    while wordOn != sou
         println(wordOn)
         wordOn = closedDict[wordOn].from
     end
-    println(source)
+    println(sou)
 end
+
+# get words
+wordFileName = joinpath(dirname(Base.source_path()), "EnglishWords/words.txt")
+f = open(wordFileName, "r")
+words= readlines(f)
+close(f)
+words = sanatizeWord.(words)
+sort!(words)
