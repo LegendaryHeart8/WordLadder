@@ -11,12 +11,17 @@ end
 function isAtoZ(text)
     all(c -> 0x61 <= UInt8(c) <= 0x7A, text)
 end
-function isWord(text)
+#gets a word from the word's index
+function getWord(ind)
+    global words
+    return words[ind]
+end
+function findWord(text)
     global words
     low = sanatizeWord(text)
     #check if word only has letters
     if !isAtoZ(low)
-        return false
+        return -1
     end
     #find text in words list
     l = 1
@@ -31,17 +36,22 @@ function isWord(text)
             l = mid + 1
         else
             foundWord = true
+            l = mid
         end
     end
     if l>length(words) || r< 1
-        return false
+        return -1
     end
+    #println("Words left: $(words[l]) : $l, right $(words[r]) : $r")
     midword = words[l]
     if midword == low
-        foundWord = true
+        return l
     end
 
-    return foundWord
+    return -1
+end
+function isWord(text)
+    return findWord(text) != -1
 end
 
 function wordDist(a::String, b::String)::Int
@@ -54,16 +64,19 @@ function wordDist(a::String, b::String)::Int
     end
     return dist
 end
-
-function astar(source, destination, metric::Function = wordDist)
+function dijkstra(source::String, destination::String)
+    zero(a, b) = 0
+    astar(source, destination, zero)
+end
+function astar(source::String, destination::String, metric::Function = wordDist)
     alphabet = "abcdefghijklmnopqrstuvwxyz"
 
     sou = sanatizeWord(source)
     dest = sanatizeWord(destination)
 
-    closedDict = Dict{String, Union{Nothing, WordNode}}() # key is a word, value is the parent/travel-from
+    closedDict = Dict{String, Union{Nothing, WordNodeS}}() # key is a word, value is the parent/travel-from
     openDict = Dict{String, Int}(sou => 1) # key is a word, value is the index in open heap of the word
-    openHeap = Array{Union{WordNode, Nothing}, 1}([WordNode(sou, 0, metric(sou, dest), "")])
+    openHeap = Array{Union{WordNodeS, Nothing}, 1}([WordNodeS(sou, 0, metric(sou, dest), "")])
     function openHeapSwap(heap, a, b)
         openDict[heap[a].word] = b
         openDict[heap[b].word] = a
@@ -72,7 +85,7 @@ function astar(source, destination, metric::Function = wordDist)
     lastOpen = 1
 
     hFunc(x) = metric(x, dest)
-    getF(x::WordNode) = x.f
+    getF(x::WordNodeS) = x.f
     #fFunc(x::WordNode) = hFunc(x.word) + x.g
     foundDestination = false
     while (!isEmptyHeap(openHeap)) && !foundDestination
@@ -96,7 +109,7 @@ function astar(source, destination, metric::Function = wordDist)
                 Qf = Qg + Qh
 
 
-                Q = WordNode(Qword, Qg, Qf, q.word)
+                Q = WordNodeS(Qword, Qg, Qf, q.word)
 
                 if Qword == dest
                     foundDestination = true
@@ -140,7 +153,113 @@ function astar(source, destination, metric::Function = wordDist)
     end
     return closedDict
 end
-function printPath(source::String, destination::String, closedDict::Dict{String, Union{Nothing, WordNode}})
+function astar(source::Int, destination::Int, metric::Function = wordDist)
+    alphabet = "abcdefghijklmnopqrstuvwxyz"
+
+    souInd = source
+    destInd = destination
+
+    sou = getWord(souInd)
+    dest = getWord(destInd)
+
+    closedDict = Dict{Int, Union{Nothing, WordNodeI}}() # key is a word, value is the parent/travel-from
+    openDict = Dict{Int, Int}(souInd => 1) # key is a word, value is the index in open heap of the word
+    openHeap = Array{Union{WordNodeI, Nothing}, 1}([WordNodeI(souInd, 0, metric(sou, dest), -1)])
+    function openHeapSwap(heap, a, b)
+        openDict[heap[a].word] = b
+        openDict[heap[b].word] = a
+        heap[a], heap[b] = heap[b], heap[a]
+    end
+    lastOpen = 1
+
+    hFunc(x) = metric(x, dest)
+    getF(x::WordNodeI) = x.f
+    foundDestination = false
+    while (!isEmptyHeap(openHeap)) && !foundDestination
+        # get next looking word
+        q = popHeap!(openHeap, getF, openHeapSwap, lastOpen) #word looking at
+        lastOpen -= 1
+        qWordTxt = getWord(q.word)
+        #iterate through successive words
+        for i = 1:length(qWordTxt)
+            Qword = qWordTxt # Q is the successor
+            for letter in alphabet
+                if letter == qWordTxt[i] # if didn't make new word
+                    continue
+                end
+                Qword = Qword[1:i-1] * letter * Qword[i+1:length(Qword)]
+                QWordInd = findWord(Qword)
+                if QWordInd == -1
+                    continue
+                end
+                Qg = 1 + q.g
+                Qh = hFunc(Qword)
+                Qf = Qg + Qh
+
+
+                Q = WordNodeI(QWordInd, Qg, Qf, q.word)
+
+                if Qword == dest
+                    foundDestination = true
+                    closedDict[QWordInd] =  Q # place on closed dict
+                    break
+                end
+
+                open = -1
+                if haskey(openDict, QWordInd)
+                    open = openDict[QWordInd]
+                end
+                if open != -1 && openHeap[open] != nothing
+                    if openHeap[open].f > Qf
+                        #replace in open heap
+                        openHeap[open].g = Q.g
+                        openHeap[open].from = Q.from
+                    end
+                    continue # skip successor
+                end
+                if haskey(closedDict, QWordInd)
+                    if closedDict[QWordInd].g <= Qg
+                        continue # skip successor
+                    end
+                end
+                #add successor onto open list
+                if lastOpen+1>length(openHeap) # if the capacity of the heap is no enough
+                    append!(openHeap, [nothing for i = 1:length(openHeap)]) # double the potential capacity
+                end
+                openDict[QWordInd] = lastOpen + 1
+                pushHeap!(openHeap, Q, getF, openHeapSwap, lastOpen)
+                lastOpen += 1
+            end
+            if foundDestination
+                break
+            end
+        end
+
+        # set word to closed
+        closedDict[q.word] = q
+        openDict[q.word] = -1
+    end
+    return closedDict
+end
+function printPath(source::String, destination::String, closedDict::Dict{Int, Union{Nothing, WordNodeI}})
+    sou = sanatizeWord(source)
+    dest = sanatizeWord(destination)
+
+    souInd = findWord(sou)
+    destInd = findWord(dest)
+    if !haskey(closedDict, destInd)
+        println("No path found between $source and $(destination)!")
+        return
+    end
+    #print path
+    wordOn = destInd
+    while wordOn != souInd
+        println(getWord(wordOn))
+        wordOn = closedDict[wordOn].from
+    end
+    println(sou)
+end
+function printPath(source::String, destination::String, closedDict::Dict{String, Union{Nothing, WordNodeS}})
     sou = sanatizeWord(source)
     dest = sanatizeWord(destination)
     if !haskey(closedDict, dest)
