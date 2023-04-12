@@ -11,3 +11,8 @@ mutable struct WordNodeI
     f::Number
     from::Int
 end
+
+mutable struct WordTreeNode
+    nextNodes::Array
+    wordEnding::Int
+end
